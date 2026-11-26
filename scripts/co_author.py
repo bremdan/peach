@@ -18,6 +18,7 @@ VENDORS = {
     "Claude Code": "noreply@anthropic.com",
     "Codex": "noreply@openai.com",
     "opencode": "noreply@opencode.ai",
+    "OpenCode": "noreply@opencode.ai",
     "ZCode": "noreply@z.ai",
     "MiMo": "noreply@xiaomi.com",
 }
