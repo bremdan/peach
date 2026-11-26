@@ -144,6 +144,18 @@ class DefaultsAreGenericTests(unittest.TestCase):
         self.assertEqual(loaded.replication.smb_host, "")
         self.assertEqual(loaded.replication.smb_user, "")
 
+    def test_photo_filter_model_root_defaults_empty_and_reads_the_setting(self):
+        with TempTree() as tree:
+            self.assertEqual(tree.load().photo_filter.model_root, "")
+            tree.write("[photo_filter]\nmodel_root = 'D:\\models\\buffalo_l'\n")
+            self.assertEqual(tree.load().photo_filter.model_root, r"D:\models\buffalo_l")
+
+    def test_photo_filter_model_root_environment_wins(self):
+        with TempTree() as tree:
+            tree.write("[photo_filter]\nmodel_root = '/from/file'\n")
+            loaded = tree.load({"PEACH_PHOTO_FILTER_MODEL_ROOT": "/from/env"})
+        self.assertEqual(loaded.photo_filter.model_root, "/from/env")
+
     def test_replication_defaults_off_for_a_single_machine(self):
         with TempTree() as tree:
             self.assertFalse(tree.load().replication.enabled)

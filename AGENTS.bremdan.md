@@ -4,7 +4,7 @@
 
 ## 分支纪律
 
-- 所有 agent 任务分支统一命名 `agent/opencode/<任务>`，从最新 `master` 拉出。
+- agent 任务分支按工具实际命名 `opencode/<issue编号>-<时间戳>`（例如 `opencode/issue4-20261126075153`），从最新 `master` 拉出；不再要求手工改成 `agent/opencode/<任务>`。
 - 一个分支只承载一个可独立验收的目标；合并后删除该分支。
 - agent 绝不直接向 `master` 推送，代码改动一律经 PR。
 

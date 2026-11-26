@@ -93,6 +93,11 @@ vision = [
     "opencv-python-headless==5.1.0.95", "numpy==2.5.5",
     "pyobjc-framework-Vision==13.0; sys_platform == 'darwin'",
 ]
+# 写真筛选的参考向量构建：InsightFace buffalo_l（SCRFD + ArcFace 512 维）。模型不随仓库
+# 分发，本机路径见设置 `[photo_filter] model_root`；构建全部在本机完成，运行时无网络请求。
+photo-filter = [
+    "insightface==2.1", "onnxruntime==1.32.0",
+]
 maintenance-115 = ["p115client==0.0.9.7.8.3"]
 # 字形复核与英文媒体文件名分词工具。
 naming = [

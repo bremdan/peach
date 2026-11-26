@@ -172,6 +172,18 @@ class ServerSettings:
 
 
 @dataclass(frozen=True)
+class PhotoFilterSettings:
+    """写真筛选的本机设置。
+
+    `model_root` 指向本机 InsightFace buffalo_l 模型目录（含 `det_10g.onnx`、
+    `w600k_r50.onnx`、`genderage.onnx`）。模型文件不随仓库分发，留空时按
+    `peach-data/tools/insightface` 查找。
+    """
+
+    model_root: str = ""
+
+
+@dataclass(frozen=True)
 class ReplicationSettings:
     """单写者 ledger 复制（ADR-0017、ADR-0020）的坐标。
 
@@ -233,6 +245,7 @@ class PeachConfig:
     locations: dict[str, tuple[str, ...]] = field(
         default_factory=lambda: dict(DEFAULT_LOCATION_ROOTS))
     server: ServerSettings = ServerSettings()
+    photo_filter: PhotoFilterSettings = PhotoFilterSettings()
     replication: ReplicationSettings = ReplicationSettings()
     tunnel: TunnelSettings = TunnelSettings()
 
@@ -396,6 +409,14 @@ def _merge(
             path, "server."),
     )
 
+    photo_filter_table = _table(document, "photo_filter", path)
+    photo_filter_defaults = PhotoFilterSettings()
+    photo_filter = PhotoFilterSettings(
+        model_root=_string(
+            photo_filter_table, "model_root", photo_filter_defaults.model_root,
+            path, "photo_filter."),
+    )
+
     replication_table = _table(document, "replication", path)
     defaults = ReplicationSettings()
     replication = ReplicationSettings(
@@ -435,7 +456,7 @@ def _merge(
         library_names=_string_map(_table(media, "libraries", path), path, "media.libraries."),
         library_icons=_string_map(_table(media, "library_icons", path), path, "media.library_icons."),
         media_costs=media_costs,
-        server=server, replication=replication, tunnel=tunnel,
+        server=server, photo_filter=photo_filter, replication=replication, tunnel=tunnel,
     )
     from . import media_identity
     if "storage_roots" in media or "library_catalog" in media:
@@ -465,6 +486,9 @@ _REPLICATION_ENV = {
     "PEACH_SHARED_SMB_SHARE": "smb_share",
     "PEACH_SHARED_SMB_USER": "smb_user",
 }
+_PHOTO_FILTER_ENV = {
+    "PEACH_PHOTO_FILTER_MODEL_ROOT": "model_root",
+}
 
 
 def _apply_environment(config: PeachConfig, environ: dict[str, str]) -> PeachConfig:
@@ -476,8 +500,15 @@ def _apply_environment(config: PeachConfig, environ: dict[str, str]) -> PeachCon
         field_name: environ[name]
         for name, field_name in _REPLICATION_ENV.items() if environ.get(name)
     }
+    photo_filter_changes = {
+        field_name: environ[name]
+        for name, field_name in _PHOTO_FILTER_ENV.items() if environ.get(name)
+    }
     if server_changes:
         config = replace(config, server=replace(config.server, **server_changes))
+    if photo_filter_changes:
+        config = replace(
+            config, photo_filter=replace(config.photo_filter, **photo_filter_changes))
     if replication_changes:
         config = replace(
             config, replication=replace(config.replication, **replication_changes))
@@ -623,6 +654,8 @@ def render(config: PeachConfig, *, language: str | None = None) -> str:
         "review_writer_origin": config.server.review_writer_origin,
         "review_writer_proxy": config.server.review_writer_proxy,
     })
+    lines += ["", "[photo_filter]"]
+    lines += _render_pairs({"model_root": config.photo_filter.model_root})
     lines += ["", "[replication]", *comment("replication")]
     lines += _render_pairs({
         "enabled": config.replication.enabled,

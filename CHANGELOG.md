@@ -16,6 +16,10 @@ Entries are written for users to scan: one sentence each, saying where something
 
 ## [Unreleased]
 
+### Added / 新增
+
+- **Library**: Add the data layer for photo filtering: reference objects with locally built face vectors, plus filter task and result tables (#5). / **馆藏**：新增写真筛选的数据层：参考对象及本地人脸向量、筛选任务与结果表（#5）。
+
 ### Fixed / 修复
 
 - **Library**: Repair, organize and scan no longer skip the healthy file after a stalled one when the file reader is slow to start. / **馆藏**：读盘进程启动慢时，修复、整理与扫描不再把挂死文件之后的正常文件一并跳过。
