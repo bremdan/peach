@@ -45,6 +45,7 @@ import { prefetchLibraryProcessing } from '../library-processing/library-process
 import { LibraryProcessingCard } from '../library-processing/library-processing-card';
 import { LibraryProcessingNotice } from '../library-processing/library-processing-notice';
 import { ManageHeaderSurface } from '../manage-header/manage-header-island';
+import { prefetchPhotoFilter } from '../photo-filter/photo-filter';
 import { prefetchPlaylists } from '../playlists/playlists';
 import { prefetchQualityGoals } from '../quality-goals/quality-goals';
 import { prefetchReview } from '../review/review';
@@ -98,6 +99,7 @@ async function withPage(chunk: RouteChunk<unknown>, data: Promise<void>): Promis
 const javPage = routeChunk(() => import('../jav/jav-page'));
 const statsPage = routeChunk(() => import('../stats/stats-page'));
 const tastePage = routeChunk(() => import('../taste/taste-page'));
+const photoFilterPage = routeChunk(() => import('../photo-filter/photo-filter-page'));
 const reviewPage = routeChunk(() => import('../review/review-page'));
 const dataCleanupPage = routeChunk(() => import('../data-cleanup/data-cleanup-page'));
 const duplicatesPage = routeChunk(() => import('../duplicates/duplicates-page'));
@@ -180,6 +182,14 @@ export const MANAGED_ROUTES: ManagedRouteTable = {
       const { TastePage } = tastePage.get();
       return <TastePage onSignal={actions.openTasteSignal} navigate={go} toast={(message) => actions.receipt(message)}
         onboarding={open.onboarding} />;
+    },
+  },
+  '/photo-filter': {
+    element: <ManagedMatch path="/photo-filter" />,
+    prefetch: (_open, signal) => withPage(photoFilterPage, prefetchPhotoFilter(signal)),
+    page: (_open, actions) => {
+      const { PhotoFilterPage } = photoFilterPage.get();
+      return <PhotoFilterPage toast={(message) => actions.receipt(message)} />;
     },
   },
   /* ADR-0018 的确定项已由扫描与资料处理任务落库；复核页只读取剩下的判断题。 */

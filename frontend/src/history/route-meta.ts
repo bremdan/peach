@@ -35,6 +35,7 @@ const ROUTE_ENTRIES = {
   '/jav': { nav: 'jav', title: 'JAV', refresh: 'reopen' },
   '/stats': { section: 'stats', title: t('shell:routeTitle.stats') },
   '/taste': { section: 'taste', title: t('shell:routeTitle.taste'), refresh: 'reopen' },
+  '/photo-filter': { section: 'photo-filter', title: t('shell:routeTitle.photoFilter'), refresh: 'reopen' },
   '/review': { section: 'review', title: t('shell:routeTitle.review'), refresh: 'reopen' },
   '/data-cleanup': { section: 'cleanup', title: t('shell:routeTitle.libraryTools') },
   ...Object.fromEntries(Object.entries(CLEANUP_CRUMB_PAGES).map(([path, title]) => [path, { section: 'cleanup', title, refresh: 'reopen' }])),
