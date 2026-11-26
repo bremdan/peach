@@ -147,6 +147,8 @@ class PeachSettings:
     # 写真筛选：参考照片副本与本地模型目录。模型不随仓库提交。
     photo_filter_reference_root: Path = PHOTO_FILTER_REFERENCE_ROOT
     photo_filter_model_root: Path = PHOTO_FILTER_MODEL_ROOT
+    photo_filter_results_root: Path = GENERATED_DIR / "photo-filter" / "results"
+    photo_filter_upload_root: Path = GENERATED_DIR / "photo-filter" / "uploads"
     # 官方封套按番号存一份原图；4:3 与 16:9 两种版式共用同一文件，靠 CSS 取景。
     cover_root: Path = COVER_DIR
     # 推送发现的共享密钥住在这里。它和访问口令是两件事，轮换一份不影响另一份。

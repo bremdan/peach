@@ -898,6 +898,28 @@ def avatar(request: Request, id: int, args: dict[str, str] = Depends(require_aut
     return _image_response(request, path, media_type="image/jpeg")
 
 
+@router.api_route("/photo-filter-face", methods=["GET", "HEAD"])
+def photo_filter_face(request: Request, result: int, args: dict[str, str] = Depends(require_auth)):
+    """写真筛选的代表脸裁剪图：只发本功能结果目录里的路径。"""
+    from pathlib import Path
+
+    contract = request.app.state.web_contract
+    with contract.read_connection() as connection:
+        row = connection.execute(
+            "SELECT representative_face_path FROM photo_filter_result WHERE id=?",
+            (result,)).fetchone()
+    if row is None or not row["representative_face_path"]:
+        return Response(status_code=404)
+    try:
+        path = Path(row["representative_face_path"]).resolve()
+    except OSError:
+        return Response(status_code=404)
+    root = Path(contract.photo_filter_results_root).resolve()
+    if not path.is_relative_to(root) or not path.is_file():
+        return Response(status_code=404)
+    return _image_response(request, path, media_type="image/jpeg")
+
+
 @router.api_route("/follow-avatar", methods=["GET", "HEAD"])
 def follow_avatar(request: Request, service: str = "", id: str = "",
                   provider: str = "", ref: str = "",
