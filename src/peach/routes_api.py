@@ -27,8 +27,9 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
-from . import push_discovery, web_contract, web_tasks
+from . import photo_filter_api, push_discovery, web_contract, web_tasks
 from .field_owners import RevisionConflict
+from .photo_filter_vector import PhotoFilterModelUnavailable
 from .folder_rules import FolderRuleConflict
 from .interaction import reveal_path
 from .jobs import TaskRunConflict
@@ -395,6 +396,165 @@ def background_issues(request: Request, _args: dict[str, str] = Depends(require_
     if config is not None and not config.present:
         config = None
     return {"issues": state.background_issues.collect(state, state.web_contract, config)}
+
+
+def _photo_error(exc: Exception) -> JSONResponse:
+    """写真筛选的薄封装路由：只把服务层的拒绝翻成状态码，消息保持原文给页面。"""
+    if isinstance(exc, KeyError):
+        return JSONResponse({"error": str(exc.args[0])}, status_code=404)
+    if isinstance(exc, FileNotFoundError):
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    if isinstance(exc, PhotoFilterModelUnavailable):
+        return JSONResponse({"error": str(exc)}, status_code=409)
+    if isinstance(exc, (ValueError, TypeError)):
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    if isinstance(exc, OSError):
+        LOGGER.warning("photo filter route failed: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+    raise exc
+
+
+@router.get("/api/photo-filter/references")
+def photo_filter_references(request: Request, _args: dict[str, str] = Depends(require_auth)):
+    return photo_filter_api.list_references(request.app.state.web_contract)
+
+
+@router.post("/api/photo-filter/references")
+def photo_filter_reference_create(request: Request, body: dict[str, Any] = Body(default_factory=dict),
+                                  _args: dict[str, str] = Depends(require_auth)):
+    try:
+        return photo_filter_api.create_reference(request.app.state.web_contract, body)
+    except (KeyError, FileNotFoundError, ValueError, TypeError, OSError, PhotoFilterModelUnavailable) as exc:
+        return _photo_error(exc)
+
+
+@router.post("/api/photo-filter/references/{reference_id}/rebuild")
+def photo_filter_reference_rebuild(request: Request, reference_id: int,
+                                   _args: dict[str, str] = Depends(require_auth)):
+    try:
+        return photo_filter_api.rebuild_reference(request.app.state.web_contract, reference_id)
+    except (KeyError, FileNotFoundError, ValueError, TypeError, OSError, PhotoFilterModelUnavailable) as exc:
+        return _photo_error(exc)
+
+
+@router.delete("/api/photo-filter/references/{reference_id}")
+def photo_filter_reference_delete(request: Request, reference_id: int,
+                                  _args: dict[str, str] = Depends(require_auth)):
+    try:
+        return photo_filter_api.delete_reference(request.app.state.web_contract, reference_id)
+    except (KeyError, ValueError, TypeError, OSError) as exc:
+        return _photo_error(exc)
+
+
+@router.post("/api/photo-filter/uploads")
+def photo_filter_upload_create(request: Request, _args: dict[str, str] = Depends(require_auth)):
+    try:
+        return photo_filter_api.create_upload(request.app.state.web_contract)
+    except OSError as exc:
+        return _photo_error(exc)
+
+
+@router.post("/api/photo-filter/uploads/{token}")
+async def photo_filter_upload(request: Request, token: str,
+                              _args: dict[str, str] = Depends(require_auth)):
+    """一张参考照片原样当请求体发，文件名走 `X-Peach-Filename`，与口味导入同一条理由。"""
+    contract = request.app.state.web_contract
+    maximum = photo_filter_api.MAX_UPLOAD_BYTES
+    try:
+        declared = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        declared = 0
+    if declared > maximum:
+        return JSONResponse({"error": "uploaded photo is too large"}, status_code=413)
+    payload = bytearray()
+    async for chunk in request.stream():
+        payload.extend(chunk)
+        if len(payload) > maximum:
+            return JSONResponse({"error": "uploaded photo is too large"}, status_code=413)
+    filename = unquote(request.headers.get("x-peach-filename") or "photo")
+    try:
+        return photo_filter_api.store_upload(contract, token, filename, bytes(payload))
+    except (KeyError, ValueError, TypeError, OSError) as exc:
+        return _photo_error(exc)
+
+
+@router.delete("/api/photo-filter/uploads/{token}")
+def photo_filter_upload_delete(request: Request, token: str,
+                               _args: dict[str, str] = Depends(require_auth)):
+    try:
+        return photo_filter_api.delete_upload(request.app.state.web_contract, token)
+    except (KeyError, ValueError, TypeError, OSError) as exc:
+        return _photo_error(exc)
+
+
+@router.get("/api/photo-filter/settings")
+def photo_filter_settings(request: Request, _args: dict[str, str] = Depends(require_auth)):
+    return photo_filter_api.settings_payload()
+
+
+@router.post("/api/photo-filter/settings")
+def photo_filter_settings_save(request: Request, body: dict[str, Any] = Body(default_factory=dict),
+                               _args: dict[str, str] = Depends(require_auth)):
+    try:
+        return photo_filter_api.write_settings(body)
+    except (ValueError, TypeError, OSError) as exc:
+        return _photo_error(exc)
+
+
+@router.get("/api/photo-filter/tasks")
+def photo_filter_tasks(request: Request, _args: dict[str, str] = Depends(require_auth)):
+    return photo_filter_api.list_tasks(request.app.state.web_contract)
+
+
+@router.post("/api/photo-filter/tasks")
+def photo_filter_task_create(request: Request, body: dict[str, Any] = Body(default_factory=dict),
+                             _args: dict[str, str] = Depends(require_auth)):
+    try:
+        return photo_filter_api.create_task(request.app.state.web_contract, body)
+    except (KeyError, FileNotFoundError, ValueError, TypeError, OSError, PhotoFilterModelUnavailable) as exc:
+        return _photo_error(exc)
+
+
+@router.get("/api/photo-filter/tasks/{task_id}")
+def photo_filter_task_detail(request: Request, task_id: int,
+                             _args: dict[str, str] = Depends(require_auth)):
+    try:
+        return photo_filter_api.task_detail(request.app.state.web_contract, task_id)
+    except (KeyError, ValueError, TypeError, OSError) as exc:
+        return _photo_error(exc)
+
+
+@router.post("/api/photo-filter/tasks/{task_id}/cancel")
+def photo_filter_task_cancel(request: Request, task_id: int,
+                             _args: dict[str, str] = Depends(require_auth)):
+    try:
+        return photo_filter_api.cancel_task(request.app.state.web_contract, task_id)
+    except (KeyError, ValueError, TypeError, OSError) as exc:
+        return _photo_error(exc)
+
+
+@router.post("/api/photo-filter/reveal")
+def photo_filter_reveal(request: Request, body: dict[str, Any] = Body(default_factory=dict),
+                        _args: dict[str, str] = Depends(require_auth)):
+    """定位图集文件夹：只从账本里的结果取路径，再交给既有 reveal 机制。"""
+    try:
+        result_id = int(body.get("result_id"))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "result_id must be an integer"}, status_code=400)
+    try:
+        target = Path(photo_filter_api.result_album(request.app.state.web_contract, result_id))
+    except KeyError as exc:
+        return _photo_error(exc)
+    if not target.exists():
+        return JSONResponse({"error": "album folder is missing"}, status_code=410)
+    try:
+        if not reveal_path(target):
+            from .nas_directories import file_position
+            return {"ok": True, **file_position(target)}
+    except OSError as error:
+        LOGGER.warning("reveal failed for %s: %s", target, error)
+        return JSONResponse({"error": "reveal failed"}, status_code=500)
+    return {"ok": True, "path": str(target)}
 
 
 def _conflict(error: TaskRunConflict) -> JSONResponse:

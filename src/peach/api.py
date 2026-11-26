@@ -706,6 +706,9 @@ def create_app(
         taste_history_store=settings.taste_history_store,
         taste_history_import_root=settings.taste_history_import_root,
         taste_history_manifest=settings.taste_history_manifest,
+        photo_filter_reference_root=settings.photo_filter_reference_root,
+        photo_filter_results_root=settings.photo_filter_results_root,
+        photo_filter_upload_root=settings.photo_filter_upload_root,
         database=database,
     )
     contract.download_organize_templates = lambda: web_settings.organize_templates(contract)

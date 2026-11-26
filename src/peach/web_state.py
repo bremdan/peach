@@ -33,6 +33,7 @@ from .config import (
     DATA_ROOT,
     GENERATED_DIR,
     MEDIA_ROOT_DECLARATIONS,
+    PHOTO_FILTER_REFERENCE_ROOT,
     SECRETS_DIR,
     SHARED_CREDENTIAL_ROOT,
     SOURCES_DIR,
@@ -140,6 +141,9 @@ class WebContract:
                  taste_history_store: Path | None = None,
                  taste_history_import_root: Path | None = None,
                  taste_history_manifest: Path | None = None,
+                 photo_filter_reference_root: Path | None = None,
+                 photo_filter_results_root: Path | None = None,
+                 photo_filter_upload_root: Path | None = None,
                  database: LedgerDatabase | None = None):
         # 候选 CSV 的目录做成实例属性而不是模块常量，复核层才能在临时目录里被测试。
         self.candidate_root = Path(candidate_root) if candidate_root is not None else GENERATED_DIR
@@ -195,6 +199,19 @@ class WebContract:
         self.taste_history_manifest = (Path(taste_history_manifest)
                                        if taste_history_manifest is not None
                                        else STATE_DIR / "taste-history" / "manifest.json")
+        # 写真筛选：参考照片副本、代表脸裁剪与上传暂存都落本功能专用目录。测试给临时
+        # 目录，生产路径才不会读到仓库外的固定位置。
+        self.photo_filter_reference_root = (Path(photo_filter_reference_root)
+                                            if photo_filter_reference_root is not None
+                                            else PHOTO_FILTER_REFERENCE_ROOT)
+        self.photo_filter_results_root = (Path(photo_filter_results_root)
+                                          if photo_filter_results_root is not None
+                                          else GENERATED_DIR / "photo-filter" / "results")
+        self.photo_filter_upload_root = (Path(photo_filter_upload_root)
+                                         if photo_filter_upload_root is not None
+                                         else GENERATED_DIR / "photo-filter" / "uploads")
+        #: 测试注入的检测器构造；生产为 None，由 `photo_filter_vector` 建 InsightFace。
+        self.photo_filter_detector_factory = None
         self.database = database or LedgerDatabase(db_path, media_roots=MEDIA_ROOT_DECLARATIONS)
         self.db_path = self.database.db_path
         self.snapshot_root = Path(snapshot_root) if snapshot_root is not None else None

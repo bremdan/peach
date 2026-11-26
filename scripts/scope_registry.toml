@@ -118,6 +118,7 @@ web = [
     "test_web_media_directory.py",
     "test_frontend_build.py", "test_frontend_preflight.py", "test_web_ui.py", "test_web_js.py",
     "test_web_e2e.py", "test_tag_management.py", "test_subtitle_search.py", "test_subtitle_memory.py",
+    "test_photo_filter_api.py",
     "test_legacy_shell_routes.py", "test_web_perf.py", "test_copy_final_state.py", "test_agency_entity.py",
     "test_label_maker.py", "test_dependency_policy.py", "test_desktop_settings.py", "test_dev_copy.py",
     "test_fastapi_api.py", "test_follow_assets.py", "test_follow_web.py", "test_metadata_library.py",
@@ -128,7 +129,7 @@ web = [
 core = [
     "test_access.py", "test_auth.py", "test_config.py", "test_field_owners.py",
     "test_entity_classification.py", "test_migrations.py", "test_ledger_revision.py", "test_platform.py",
-    "test_photo_filter.py", "test_photo_filter_scoring.py",
+    "test_photo_filter.py", "test_photo_filter_scoring.py", "test_photo_filter_api.py",
     "test_mount.py", "test_tray.py", "test_certs.py", "test_folder_picker.py", "test_fsutil.py",
     "test_runtime_consistency.py", "test_subprocess_encoding.py", "test_outbound_proxy_policy.py",
     "test_windows_update.py", "test_buildinfo.py",
