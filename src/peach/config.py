@@ -38,6 +38,12 @@ REVIEW_DIR: Path = _SETTINGS.directory("review")
 FFMPEG_DIR: Path = TOOLS_DIR / "ffmpeg"
 TRANSCODE_DIR: Path = GENERATED_DIR / "transcodes"
 COVER_DIR: Path = GENERATED_DIR / "covers"
+#: 写真筛选的参考照片副本住在本功能专用子目录，原始照片只读复制，绝不改动。
+PHOTO_FILTER_REFERENCE_ROOT: Path = GENERATED_DIR / "photo-filter" / "references"
+#: InsightFace buffalo_l 模型目录。模型不随仓库分发，设置里可填本机路径。
+PHOTO_FILTER_MODEL_ROOT: Path = (
+    Path(_SETTINGS.photo_filter.model_root).expanduser()
+    if _SETTINGS.photo_filter.model_root.strip() else TOOLS_DIR / "insightface")
 #: 迁移随代码走，不随数据走：它属于项目而不是某一份账本。
 MIGRATIONS_DIR: Path = PROJECT_ROOT / "migrations"
 
@@ -138,6 +144,9 @@ class PeachSettings:
     logo_root: Path = GENERATED_DIR / "logos"
     # 图片资产的缓存缩略图。云盘原图一张就有几 MB，回源一次之后图片墙只读这里。
     photo_root: Path = GENERATED_DIR / "photo-thumbs"
+    # 写真筛选：参考照片副本与本地模型目录。模型不随仓库提交。
+    photo_filter_reference_root: Path = PHOTO_FILTER_REFERENCE_ROOT
+    photo_filter_model_root: Path = PHOTO_FILTER_MODEL_ROOT
     # 官方封套按番号存一份原图；4:3 与 16:9 两种版式共用同一文件，靠 CSS 取景。
     cover_root: Path = COVER_DIR
     # 推送发现的共享密钥住在这里。它和访问口令是两件事，轮换一份不影响另一份。

@@ -45,6 +45,7 @@ CONTENT_FILES = {
     "taste_words.py",         # 口味维度匹配词、停用词、馆藏规范标签名与成人站标题记号
     "junk_words.py",          # 推广套话、推广品牌、推广目录形态与分卷标记
     "release_words.py",       # GitHub Release 正文里认的折叠标题与旧版下载段标题
+    "photo_filter_words.py",  # 写真筛选写进账本的失败原因模板
 }
 #: 开发工具里整份只有数据的脚本，键是 `scripts/` 下的相对路径；数据和输出混在一起的脚本照常计数。
 DEV_CONTENT_FILES = {
