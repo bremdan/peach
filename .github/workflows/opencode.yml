@@ -24,4 +24,4 @@ jobs:
         env:
           DEEPSEEK_API_KEY: ${{ secrets.MODEL_API_KEY }}
         with:
-          model: deepseek/deepseek-chat
+          model: deepseek/deepseek-flash
