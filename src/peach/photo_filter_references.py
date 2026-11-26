@@ -285,6 +285,10 @@ class ReferenceStore:
 
     # ---- 内部 ------------------------------------------------------------
 
+    def detector(self):
+        """供打分服务复用同一套检测器构造：生产是 InsightFace，测试可注入替身。"""
+        return self._detector()
+
     def _detector(self):
         if self.detector_factory is not None:
             return self.detector_factory()

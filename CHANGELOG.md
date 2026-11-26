@@ -18,6 +18,7 @@ Entries are written for users to scan: one sentence each, saying where something
 
 ### Added / 新增
 
+- **Library**: Score photo-filter albums locally by clustering faces against reference objects, with five result tiers and a per-album representative face (#7). / **馆藏**：写真筛选按人脸聚簇与参考对象在本地给图集打分，结果分五层并裁出代表脸（#7）。
 - **Library**: Add the data layer for photo filtering: reference objects with locally built face vectors, plus filter task and result tables (#5). / **馆藏**：新增写真筛选的数据层：参考对象及本地人脸向量、筛选任务与结果表（#5）。
 
 ### Fixed / 修复
