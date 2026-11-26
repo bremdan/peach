@@ -38,6 +38,10 @@ path = "AGENTS.md"
 kind = "reference"
 
 [[kinds]]
+path = "AGENTS.bremdan.md"
+kind = "reference"
+
+[[kinds]]
 path = "CLAUDE.md"
 kind = "reference"
 
