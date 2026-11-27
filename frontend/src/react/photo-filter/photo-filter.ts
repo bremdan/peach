@@ -22,7 +22,7 @@ export const DEFAULT_TASTE_THRESHOLD = 0.3;
 
 export type ReferenceStatus = 'ready' | 'failed';
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-export type Tier = 'hit' | 'suspected' | 'taste' | 'miss' | 'insufficient';
+export type Tier = 'hit' | 'suspected' | 'taste' | 'miss' | 'insufficient' | 'failed';
 
 export interface PhotoFilterReference {
   id: number;
@@ -59,6 +59,7 @@ export interface PhotoFilterTask {
 export interface PhotoFilterResult {
   id: number;
   album_path: string;
+  album_name: string;
   score: number;
   top_reference_id: number | null;
   top_reference_name: string;
@@ -68,6 +69,7 @@ export interface PhotoFilterResult {
   tier: Tier;
   tier_label: string;
   protagonist_spread: boolean;
+  failure_reason: string;
   face_url: string;
 }
 

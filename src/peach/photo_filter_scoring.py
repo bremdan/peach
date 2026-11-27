@@ -1,8 +1,10 @@
 """写真筛选的打分：逐集扫描、集内聚簇、与参考对象比对、分层并落库。
 
-输入是一个根目录，根目录下每个子文件夹算一个图集；图集内部的图片递归读取，只认
-jpg/jpeg/png/webp/bmp。单张图的处理与参考向量构建共用 `photo_filter_vector`：加白边
-15% → 只留女性脸 → 质量门 ≥80px → 取面积最大的那张脸。每张图因此只贡献一个向量。
+输入是一个根目录，根目录下每个子文件夹和每个 `.zip` 文件各算一个图集；文件夹图集内部的
+图片递归读取，ZIP 图集按条目名扁平读取、不整包解压落盘。两者都只认
+jpg/jpeg/png/webp/bmp，嵌套 ZIP 跳过。单张图的处理与参考向量构建共用
+`photo_filter_vector`：加白边 15% → 只留女性脸 → 质量门 ≥80px → 取面积最大的那张脸。
+每张图因此只贡献一个向量。
 
 集内把全部向量按余弦相似度 ≥0.45 贪心聚簇，最大簇（同大小取更早出现的）是主角簇。
 主角簇均值向量归一化后，与每个就绪参考对象的向量算余弦，最高分就是该集得分，同时记下
@@ -18,9 +20,10 @@ jpg/jpeg/png/webp/bmp。单张图的处理与参考向量构建共用 `photo_fil
 from __future__ import annotations
 
 import hashlib
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from . import photo_filter_words as words
 from .photo_filter_references import (
@@ -33,6 +36,7 @@ from .photo_filter_references import (
 from .photo_filter_vector import (
     BORDER_RATIO,
     add_white_border,
+    decode_bgr,
     main_face,
     mean_normalized,
     read_bgr,
@@ -50,11 +54,42 @@ MIN_VALID_IMAGES = 5
 PROTAGONIST_SPREAD_RATIO = 0.5
 
 
+class AlbumReadError(RuntimeError):
+    """一个 ZIP 图集读不出来；只标记该集失败，不中断整个任务。"""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+@dataclass(frozen=True)
+class ZipImage:
+    """ZIP 里的一个图片条目；只读取当前条目，不整包解压落盘。"""
+
+    archive: Path
+    entry: str
+
+    @property
+    def name(self) -> str:
+        return PurePosixPath(self.entry.replace("\\", "/")).name
+
+    @property
+    def label(self) -> str:
+        return f"{self.archive.name}:{self.entry}"
+
+    def read_bytes(self) -> bytes:
+        try:
+            with zipfile.ZipFile(self.archive) as bundle:
+                return bundle.read(self.entry)
+        except Exception as error:
+            raise AlbumReadError(_zip_reason(self.archive, error)) from error
+
+
 @dataclass(frozen=True)
 class FaceSample:
-    """一张有效图的主脸：来源路径、白边图里的框、512 维向量。"""
+    """一张有效图的主脸：来源（文件或 ZIP 条目）、白边图里的框、512 维向量。"""
 
-    path: Path
+    path: Path | ZipImage
     bbox: tuple[float, float, float, float]
     embedding: object
 
@@ -71,6 +106,12 @@ class AlbumResult:
     protagonist_cluster_ratio: float
     tier_label: str
     representative_face_path: str
+    album_name: str = ""
+    failure_reason: str = ""
+
+    @property
+    def failed(self) -> bool:
+        return bool(self.failure_reason)
 
 
 @dataclass(frozen=True)
@@ -88,18 +129,80 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _is_zip_path(path: Path) -> bool:
+    return path.suffix.lower() == ".zip" and not path.is_dir()
+
+
+def _zip_stem(path: Path) -> str:
+    return path.name[:-4] if path.name.casefold().endswith(".zip") else path.name
+
+
+def _zip_reason(archive: Path, error: Exception) -> str:
+    name = Path(archive).name
+    if isinstance(error, zipfile.BadZipFile):
+        return f"{name} 损坏或不是有效的 ZIP 文件"
+    message = str(error).casefold()
+    if "password" in message or "encrypted" in message:
+        return f"{name} 已加密，无法读取"
+    if isinstance(error, NotImplementedError):
+        return f"{name} 使用了不支持的压缩方式"
+    return f"{name} 无法读取：{error}"
+
+
 def discover_albums(root: Path | str) -> list[Path]:
-    """根目录下的直接子文件夹，按名字排序；根目录本身的图片不算图集。"""
+    """根目录下的直接子文件夹和 `.zip` 文件，按名字排序；根目录散图不算图集。"""
     base = Path(root)
-    albums = [path for path in base.iterdir() if path.is_dir()]
+    albums = [path for path in base.iterdir()
+              if path.is_dir() or (path.is_file() and _is_zip_path(path))]
     return sorted(albums, key=lambda path: (path.name.casefold(), path.name))
 
 
-def album_images(album: Path | str) -> list[Path]:
-    """递归列出图集里的图片，按文件名排序。"""
-    found = [path for path in Path(album).rglob("*")
-             if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS]
-    return sorted(found, key=lambda path: (path.name.casefold(), str(path)))
+def album_display_names(albums) -> dict[Path, str]:
+    """图集的展示名：文件夹用目录名，ZIP 去后缀；与文件夹同名时加 ` (zip)`。"""
+    paths = [Path(album) for album in albums]
+    folder_names = {path.name.casefold() for path in paths if not _is_zip_path(path)}
+    names: dict[Path, str] = {}
+    taken: set[str] = set()
+    for path in paths:
+        base = _zip_stem(path) if _is_zip_path(path) else path.name
+        if _is_zip_path(path) and base.casefold() in folder_names:
+            base = f"{base} (zip)"
+        name = base
+        index = 2
+        while name.casefold() in taken:
+            name = f"{base} ({index})"
+            index += 1
+        taken.add(name.casefold())
+        names[path] = name
+    return names
+
+
+def zip_album_images(archive: Path | str) -> list[ZipImage]:
+    """流式列出 ZIP 内的图片条目；嵌套 ZIP 与非图片条目跳过。"""
+    path = Path(archive)
+    try:
+        with zipfile.ZipFile(path) as bundle:
+            infos = [info for info in bundle.infolist()
+                     if not info.is_dir()
+                     and PurePosixPath(info.filename.replace("\\", "/")).suffix.lower()
+                     in IMAGE_EXTENSIONS]
+    except Exception as error:
+        raise AlbumReadError(_zip_reason(path, error)) from error
+    if any(info.flag_bits & 0x1 for info in infos):
+        raise AlbumReadError(f"{path.name} 已加密，无法读取")
+    infos.sort(key=lambda info: (
+        PurePosixPath(info.filename.replace("\\", "/")).name.casefold(), info.filename))
+    return [ZipImage(path, info.filename) for info in infos]
+
+
+def album_images(album: Path | str) -> list[Path | ZipImage]:
+    """列出图集里的图片，按文件名排序；ZIP 图集只读条目名，不解压。"""
+    path = Path(album)
+    if _is_zip_path(path):
+        return zip_album_images(path)
+    found = [item for item in path.rglob("*")
+             if item.is_file() and item.suffix.lower() in IMAGE_EXTENSIONS]
+    return sorted(found, key=lambda item: (item.name.casefold(), str(item)))
 
 
 def sample_images(images, limit: int = MAX_ALBUM_IMAGES) -> list[Path]:
@@ -194,24 +297,31 @@ def _border_size(image) -> int:
     return max(1, int(round(min(height, width) * BORDER_RATIO)))
 
 
-def examine_image(path: Path | str, detector) -> FaceSample | None:
+def _read_source(source: Path | str | ZipImage):
+    if isinstance(source, ZipImage):
+        return decode_bgr(source.read_bytes(), source.label)
+    return read_bgr(source)
+
+
+def examine_image(source: Path | str | ZipImage, detector) -> FaceSample | None:
     """读一张图、走定版管线，返回主脸样本；读不出或没有合格女性脸时返回 None。"""
     try:
-        image = read_bgr(path)
+        image = _read_source(source)
     except ValueError:
         return None
     face = main_face(detector.detect(add_white_border(image)))
     if face is None:
         return None
-    return FaceSample(path=Path(path), bbox=face.bbox, embedding=face.embedding)
+    origin = source if isinstance(source, ZipImage) else Path(source)
+    return FaceSample(path=origin, bbox=face.bbox, embedding=face.embedding)
 
 
-def save_face_crop(path: Path | str, bbox, destination: Path | str) -> Path:
+def save_face_crop(source: Path | str | ZipImage, bbox, destination: Path | str) -> Path:
     """按白边图坐标从原图裁出脸部区域，写到 `destination`，返回写入的路径。"""
     import cv2
     import numpy
 
-    image = read_bgr(path)
+    image = _read_source(source)
     height, width = image.shape[:2]
     border = _border_size(image)
     x1, y1, x2, y2 = bbox
@@ -236,11 +346,42 @@ def _representative_path(root: Path, task_id: int, album: Path) -> Path:
     return root / str(task_id) / f"{digest}.jpg"
 
 
+def failed_album_result(album: Path | str, album_name: str, reason: str) -> AlbumResult:
+    """读取失败的图集：不出分，只留下失败标记与原因。"""
+    return AlbumResult(
+        album_path=str(album),
+        score=0.0,
+        top_reference_id=None,
+        valid_image_count=0,
+        total_image_count=0,
+        protagonist_cluster_ratio=0.0,
+        tier_label=f"{words.TIER_READ_FAILED}：{reason}",
+        representative_face_path="",
+        album_name=album_name,
+        failure_reason=reason,
+    )
+
+
 def score_album(album: Path | str, images, detector, references, *,
                 hit_threshold: float, taste_threshold: float,
-                representative_root: Path | str, task_id: int) -> AlbumResult:
+                representative_root: Path | str, task_id: int,
+                album_name: str | None = None) -> AlbumResult:
     """对单个图集跑完整流程并返回结果；`references` 是 `(id, 归一化向量)`。"""
     album_path = Path(album)
+    name = album_name or (_zip_stem(album_path) if _is_zip_path(album_path)
+                          else album_path.name)
+    try:
+        return _score_album(
+            album_path, name, images, detector, references,
+            hit_threshold=hit_threshold, taste_threshold=taste_threshold,
+            representative_root=representative_root, task_id=task_id)
+    except AlbumReadError as error:
+        return failed_album_result(album_path, name, error.reason)
+
+
+def _score_album(album_path: Path, album_name: str, images, detector, references, *,
+                 hit_threshold: float, taste_threshold: float,
+                 representative_root: Path | str, task_id: int) -> AlbumResult:
     all_images = list(images)
     sampled = sample_images(all_images)
     faces: list[FaceSample] = []
@@ -254,7 +395,8 @@ def score_album(album: Path | str, images, detector, references, *,
     if not faces:
         label = tier_label(0, 0.0, 0.0,
                            hit_threshold=hit_threshold, taste_threshold=taste_threshold)
-        return AlbumResult(str(album_path), 0.0, None, 0, total, 0.0, label, "")
+        return AlbumResult(str(album_path), 0.0, None, 0, total, 0.0, label, "",
+                           album_name=album_name)
 
     clusters = cluster_face_indices([face.embedding for face in faces])
     protagonist = protagonist_cluster(clusters)
@@ -282,6 +424,7 @@ def score_album(album: Path | str, images, detector, references, *,
         protagonist_cluster_ratio=ratio,
         tier_label=label,
         representative_face_path=str(crop),
+        album_name=album_name,
     )
 
 
@@ -340,6 +483,7 @@ class PhotoFilterScorer:
 
         detector = self._detector()
         albums = discover_albums(root)
+        album_names = album_display_names(albums)
         self._clear_results(task_id)
         self.store.update_task(task_id, status=TASK_RUNNING,
                                processed_count=0, total_count=len(albums))
@@ -352,12 +496,16 @@ class PhotoFilterScorer:
                 if current is None or current.status == TASK_CANCELLED:
                     cancelled = True
                     break
-                result = score_album(
-                    album, album_images(album), detector, references,
-                    hit_threshold=task.hit_threshold,
-                    taste_threshold=task.taste_threshold,
-                    representative_root=self.representative_root,
-                    task_id=task_id)
+                name = album_names[album]
+                try:
+                    result = score_album(
+                        album, album_images(album), detector, references,
+                        hit_threshold=task.hit_threshold,
+                        taste_threshold=task.taste_threshold,
+                        representative_root=self.representative_root,
+                        task_id=task_id, album_name=name)
+                except AlbumReadError as error:
+                    result = failed_album_result(album, name, error.reason)
                 self._insert_result(task_id, result)
                 results.append(result)
                 updated = self.store.update_task(task_id, processed_count=index)

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 import numpy
@@ -139,6 +140,31 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual([path.name for path in scoring.album_images(self.root / "b")],
                          ["x.PNG", "z.webp"])
 
+    def test_root_zips_are_albums_with_collision_names_and_flat_entries(self):
+        (self.root / "q7").mkdir()
+        write_marked_image(self.root / "q7" / "a.png", 10)
+        source = write_marked_image(self.root / "source.png", 10)
+        with zipfile.ZipFile(self.root / "q7.zip", "w") as archive:
+            archive.write(source, "nested/01.png")
+            archive.writestr("nested/02.PNG", source.read_bytes())
+            archive.writestr("inner.zip", b"nested zip is not expanded")
+            archive.writestr("nested/notes.txt", b"not an image")
+        with zipfile.ZipFile(self.root / "solo.zip", "w") as archive:
+            archive.write(source, "one.png")
+        write_marked_image(self.root / "loose.png", 10)
+
+        albums = scoring.discover_albums(self.root)
+        self.assertEqual([path.name for path in albums], ["q7", "q7.zip", "solo.zip"])
+        names = scoring.album_display_names(albums)
+        self.assertEqual(names[self.root / "q7"], "q7")
+        self.assertEqual(names[self.root / "q7.zip"], "q7 (zip)")
+        self.assertEqual(names[self.root / "solo.zip"], "solo")
+        self.assertEqual(len(set(names.values())), len(albums))
+        self.assertEqual([image.name for image in scoring.album_images(self.root / "q7.zip")],
+                         ["01.png", "02.PNG"])
+        self.assertEqual([image.name for image in scoring.album_images(self.root / "solo.zip")],
+                         ["one.png"])
+
 
 class ScoringChainTests(unittest.TestCase):
     MARKERS = {
@@ -177,6 +203,19 @@ class ScoringChainTests(unittest.TestCase):
         for index, marker in enumerate(markers, 1):
             write_marked_image(folder / f"{index:02d}.png", marker)
         return folder
+
+    def make_zip_album(self, name: str, markers, *, nested=False):
+        sources = self.root / f"zip-source-{name}"
+        sources.mkdir()
+        archive_path = self.albums / f"{name}.zip"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            for index, marker in enumerate(markers, 1):
+                source = write_marked_image(sources / f"{index:02d}.png", marker)
+                entry = f"nested/{index:02d}.png" if nested else f"{index:02d}.png"
+                archive.write(source, entry)
+            if nested:
+                archive.writestr("nested/inner.zip", b"not expanded")
+        return archive_path
 
     def build_albums(self):
         self.make_album("hit", [10] * 5)
@@ -252,6 +291,52 @@ class ScoringChainTests(unittest.TestCase):
         self.assertIsNone(empty["top_reference_id"])
         self.assertEqual(empty["representative_face_path"], "")
 
+        self.assertEqual(self.snapshot(), before)
+
+    def test_zip_albums_share_the_folder_scoring_pipeline_and_names(self):
+        self.make_album("same", [10] * 5)
+        self.make_zip_album("same", [10] * 5, nested=True)
+        before = self.snapshot()
+        task = self.store.create_task(str(self.albums))
+        run = self.scorer.score_task(task.id)
+
+        self.assertFalse(run.cancelled)
+        self.assertEqual((run.processed_count, run.total_count), (2, 2))
+        by_file = {Path(result.album_path).name: result for result in run.results}
+        self.assertEqual(set(by_file), {"same", "same.zip"})
+        for key in ("same", "same.zip"):
+            result = by_file[key]
+            self.assertAlmostEqual(result.score, 1.0, places=4)
+            self.assertEqual((result.valid_image_count, result.total_image_count), (5, 5))
+            self.assertEqual(result.tier_label, words.TIER_HIT)
+            self.assertTrue(Path(result.representative_face_path).is_file())
+        self.assertEqual({result.album_name for result in run.results}, {"same", "same (zip)"})
+        self.assertEqual(self.snapshot(), before)
+
+    def test_corrupt_zip_is_reported_without_aborting_the_run(self):
+        self.make_album("good", [10] * 5)
+        broken = self.albums / "broken.zip"
+        with zipfile.ZipFile(broken, "w") as archive:
+            archive.writestr("01.png", b"truncated later")
+        payload = broken.read_bytes()
+        broken.write_bytes(payload[:max(1, len(payload) // 2)])
+        before = self.snapshot()
+        task = self.store.create_task(str(self.albums))
+        run = self.scorer.score_task(task.id)
+
+        self.assertFalse(run.cancelled)
+        self.assertEqual((run.processed_count, run.total_count), (2, 2))
+        self.assertEqual(self.store.get_task(task.id).status, references.TASK_COMPLETED)
+        rows = self.rows(task.id)
+        self.assertEqual(set(rows), {"good", "broken.zip"})
+        self.assertAlmostEqual(rows["good"]["score"], 1.0, places=4)
+        self.assertIn(words.TIER_READ_FAILED, rows["broken.zip"]["tier_label"])
+        self.assertEqual(rows["broken.zip"]["valid_image_count"], 0)
+        failed = next(result for result in run.results
+                      if result.album_path.endswith("broken.zip"))
+        self.assertTrue(failed.failed)
+        self.assertTrue(failed.failure_reason)
+        self.assertEqual(failed.album_name, "broken")
         self.assertEqual(self.snapshot(), before)
 
     def test_cancelling_between_albums_stops_the_run(self):
