@@ -1320,6 +1320,9 @@
     }
   },
   "errors": {
+    "aiFilenameGuess": {
+      "credentialStoreUnavailable": "The system credential store is unavailable. Try again later or check your sign-in."
+    },
     "seedSharing": {
       "invalidChoice": "Choose whether to enable public metadata contributions.",
       "previewFirst": "Preview the local metadata and confirm the sharing scope first.",
