@@ -40,7 +40,9 @@ def write_marked_image(path: Path, marker: int) -> Path:
 
     image = numpy.full((80, 100, 3), 128, dtype=numpy.uint8)
     image[40, 50] = (marker, 0, 0)
-    assert cv2.imwrite(str(path), image)
+    written, buffer = cv2.imencode(path.suffix, image)
+    assert written
+    path.write_bytes(buffer.tobytes())
     return path
 
 
