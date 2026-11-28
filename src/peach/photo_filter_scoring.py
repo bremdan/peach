@@ -140,13 +140,13 @@ def _zip_stem(path: Path) -> str:
 def _zip_reason(archive: Path, error: Exception) -> str:
     name = Path(archive).name
     if isinstance(error, zipfile.BadZipFile):
-        return f"{name} 损坏或不是有效的 ZIP 文件"
+        return words.ALBUM_CORRUPT.format(name=name)
     message = str(error).casefold()
     if "password" in message or "encrypted" in message:
-        return f"{name} 已加密，无法读取"
+        return words.ALBUM_ENCRYPTED.format(name=name)
     if isinstance(error, NotImplementedError):
-        return f"{name} 使用了不支持的压缩方式"
-    return f"{name} 无法读取：{error}"
+        return words.ALBUM_UNSUPPORTED_COMPRESSION.format(name=name)
+    return words.ALBUM_UNREADABLE.format(name=name, error=error)
 
 
 def discover_albums(root: Path | str) -> list[Path]:
@@ -189,7 +189,7 @@ def zip_album_images(archive: Path | str) -> list[ZipImage]:
     except Exception as error:
         raise AlbumReadError(_zip_reason(path, error)) from error
     if any(info.flag_bits & 0x1 for info in infos):
-        raise AlbumReadError(f"{path.name} 已加密，无法读取")
+        raise AlbumReadError(words.ALBUM_ENCRYPTED.format(name=path.name))
     infos.sort(key=lambda info: (
         PurePosixPath(info.filename.replace("\\", "/")).name.casefold(), info.filename))
     return [ZipImage(path, info.filename) for info in infos]
