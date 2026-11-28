@@ -1320,6 +1320,9 @@
     }
   },
   "errors": {
+    "aiFilenameGuess": {
+      "credentialStoreUnavailable": "系统凭据库暂时不可用，请稍后重试或检查系统登录状态。"
+    },
     "seedSharing": {
       "invalidChoice": "请选择是否参与公开资料共建。",
       "previewFirst": "请先预览本机资料并确认分享范围。",

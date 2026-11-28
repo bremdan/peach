@@ -128,6 +128,7 @@ web = [
 ]
 core = [
     "test_access.py", "test_auth.py", "test_config.py", "test_field_owners.py",
+    "test_ai_filename_guess.py", "test_ai_filename_guess_credentials.py",
     "test_entity_classification.py", "test_migrations.py", "test_ledger_revision.py", "test_platform.py",
     "test_photo_filter.py", "test_photo_filter_scoring.py", "test_photo_filter_api.py",
     "test_mount.py", "test_tray.py", "test_certs.py", "test_folder_picker.py", "test_fsutil.py",
@@ -281,6 +282,9 @@ follow = [
 # 推广附件命名词库：垃圾复核队列（`test_ad_judgement.py`）与回收站脚本（`test_trash_junk.py`）都读它。
 "resources/junk/promo_attachment_names.json" = ["catalog", "tooling"]
 "src/peach/junk_visual.py" = ["catalog", "media", "metadata"]
+# AI 猜文件名：留痕与系统凭据库。迁移、凭据与数据层测试都在 core。
+"src/peach/ai_filename_guess.py" = ["core"]
+"src/peach/ai_filename_guess_credentials.py" = ["core"]
 # 写真筛选：数据层与本地人脸向量。迁移与设置归 core，人脸编排归 metadata，测试两域都登记。
 "src/peach/photo_filter_references.py" = ["core", "metadata"]
 "src/peach/photo_filter_scoring.py" = ["core", "metadata"]
