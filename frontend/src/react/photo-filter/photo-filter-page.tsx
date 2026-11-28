@@ -42,7 +42,11 @@ const TIER_LABELS: Record<Tier, string> = {
   taste: t('manage:photoFilter.tierTaste'),
   miss: t('manage:photoFilter.tierMiss'),
   insufficient: t('manage:photoFilter.tierInsufficient'),
+  failed: t('manage:photoFilter.tierFailed'),
 };
+
+const resultName = (result: PhotoFilterResult): string =>
+  result.album_name || albumName(result.album_path);
 
 const STATUS_LABELS: Record<string, string> = {
   ready: t('manage:photoFilter.statusReady'),
@@ -371,9 +375,11 @@ function TaskSection({ task, detail, loading, error, notify }: {
       </section>
     );
   }
-  const main = detail.results.filter((result) => result.tier !== 'suspected' && result.tier !== 'insufficient');
+  const main = detail.results.filter((result) =>
+    result.tier !== 'suspected' && result.tier !== 'insufficient' && result.tier !== 'failed');
   const suspected = detail.results.filter((result) => result.tier === 'suspected');
   const insufficient = detail.results.filter((result) => result.tier === 'insufficient');
+  const failed = detail.results.filter((result) => result.tier === 'failed');
   return (
     <section className={CARD} aria-label={t('manage:photoFilter.resultsTitle')}>
       <SectionHeader title={t('manage:photoFilter.resultsTitle')}>
@@ -396,6 +402,20 @@ function TaskSection({ task, detail, loading, error, notify }: {
       {task.status === 'failed' ? <Note tone="error">{t('manage:photoFilter.taskFailed')}</Note> : null}
       {task.status === 'cancelled' ? <Note tone="warning">{t('manage:photoFilter.taskWasCancelled')}</Note> : null}
       {cancel.error ? <Note tone="error">{errorMessage(cancel.error)}</Note> : null}
+
+      {failed.length ? (
+        <div className="flex flex-col gap-2">
+          <h4 className="text-body-semibold text-text-primary">{t('manage:photoFilter.zoneFailed')}</h4>
+          <ul className="flex flex-col gap-1">
+            {failed.map((result) => (
+              <li key={result.id} className="flex flex-wrap items-baseline gap-2 text-body-2-regular text-text-secondary">
+                <span className="min-w-0 break-words text-text-primary">{resultName(result)}</span>
+                <span>{result.failure_reason || result.tier_label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {main.length ? (
         <div className="flex flex-col gap-3">
@@ -425,7 +445,7 @@ function TaskSection({ task, detail, loading, error, notify }: {
           <ul className="flex flex-col gap-1">
             {insufficient.map((result) => (
               <li key={result.id} className="flex flex-wrap items-baseline gap-2 text-body-2-regular text-text-secondary">
-                <span className="min-w-0 break-words text-text-primary">{albumName(result.album_path)}</span>
+                <span className="min-w-0 break-words text-text-primary">{resultName(result)}</span>
                 <span>{t('manage:photoFilter.validImages', { count: result.valid_image_count })}</span>
               </li>
             ))}
@@ -458,7 +478,7 @@ function ResultCard({ result, notify, suspected = false }: {
               className="size-16 shrink-0 rounded-lg bg-media-placeholder object-cover" />
           : <span className="size-16 shrink-0 rounded-lg bg-media-placeholder" />}
         <span className="flex min-w-0 flex-col gap-0.5">
-          <b className="min-w-0 text-body-medium break-words text-text-primary">{albumName(result.album_path)}</b>
+          <b className="min-w-0 text-body-medium break-words text-text-primary">{resultName(result)}</b>
           <small className={SUBTITLE}>{TIER_LABELS[result.tier]}</small>
           <small className={SUBTITLE}>{t('manage:photoFilter.score', { score: result.score.toFixed(3) })}</small>
         </span>

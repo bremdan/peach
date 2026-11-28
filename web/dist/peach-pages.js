@@ -2,7 +2,7 @@
 (function() {
 	try {
 		var e = typeof globalThis < "u" ? globalThis : typeof window < "u" ? window : typeof global < "u" ? global : typeof self < "u" ? self : {}, t = new e.Error().stack;
-		t && (e._sentryDebugIds = e._sentryDebugIds || {}, e._sentryDebugIds[t] = "a4cc57dd-ff60-43a5-ad79-81887d8866ed", e._sentryDebugIdIdentifier = "sentry-dbid-a4cc57dd-ff60-43a5-ad79-81887d8866ed");
+		t && (e._sentryDebugIds = e._sentryDebugIds || {}, e._sentryDebugIds[t] = "c5e77144-e1aa-4965-8daa-349793d8d18f", e._sentryDebugIdIdentifier = "sentry-dbid-c5e77144-e1aa-4965-8daa-349793d8d18f");
 	} catch {}
 })();
 var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescriptor, r = Object.getOwnPropertyNames, i = Object.getPrototypeOf, a = Object.prototype.hasOwnProperty, o = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e = null), t.exports), s = (e, i, o, s) => {
@@ -4402,7 +4402,7 @@ var We = "peach.settings.v1", Ge = {
 		insufficientFaces: "Only {{count}} valid faces, fewer than {{needed}}, so no vector was generated. Add photos and rebuild.",
 		newTask: "New filter",
 		albumRoot: "Album root",
-		albumRootPlaceholder: "Directory containing one subdirectory per album",
+		albumRootPlaceholder: "Directory containing album subdirectories or .zip albums",
 		hitThreshold: "Hit threshold",
 		tasteThreshold: "Taste threshold",
 		startFilter: "Start filtering",
@@ -4421,8 +4421,9 @@ var We = "peach.settings.v1", Ge = {
 		zoneHits: "Hits",
 		zoneSuspected: "Suspected hit · needs confirmation",
 		zoneInsufficient: "Insufficient signal",
+		zoneFailed: "Unreadable",
 		noResults: "This run produced no results",
-		noResultsHint: "Make sure each subdirectory of the root is an album with recognizable photos.",
+		noResultsHint: "Make sure each subdirectory or .zip under the root is an album with recognizable photos.",
 		validImages: "{{count}} valid images",
 		score: "Score {{score}}",
 		topReference: "Closest to",
@@ -4438,6 +4439,7 @@ var We = "peach.settings.v1", Ge = {
 		tierTaste: "Taste match",
 		tierMiss: "Miss",
 		tierInsufficient: "Insufficient signal",
+		tierFailed: "Unreadable",
 		statusReady: "Ready",
 		statusFailed: "Failed",
 		statusPending: "Pending",
@@ -12335,7 +12337,7 @@ var We = "peach.settings.v1", Ge = {
 		insufficientFaces: "有效脸只有 {{count}} 张，少于 {{needed}} 张，未生成向量；请补图后重建。",
 		newTask: "新建筛选",
 		albumRoot: "图集根目录",
-		albumRootPlaceholder: "包含各图集子文件夹的目录",
+		albumRootPlaceholder: "包含各图集子文件夹或 .zip 图集的目录",
 		hitThreshold: "命中线",
 		tasteThreshold: "口味线",
 		startFilter: "开始筛选",
@@ -12354,8 +12356,9 @@ var We = "peach.settings.v1", Ge = {
 		zoneHits: "命中",
 		zoneSuspected: "疑似命中·待确认",
 		zoneInsufficient: "信号不足",
+		zoneFailed: "读取失败",
 		noResults: "这次筛选没有结果",
-		noResultsHint: "确认根目录下的每个子文件夹是一个图集，且里面含有可识别的照片。",
+		noResultsHint: "确认根目录下的每个子文件夹或 .zip 是一个图集，且里面含有可识别的照片。",
 		validImages: "有效图 {{count}} 张",
 		score: "得分 {{score}}",
 		topReference: "最像",
@@ -12371,6 +12374,7 @@ var We = "peach.settings.v1", Ge = {
 		tierTaste: "口味相似",
 		tierMiss: "未命中",
 		tierInsufficient: "信号不足",
+		tierFailed: "读取失败",
 		statusReady: "就绪",
 		statusFailed: "失败",
 		statusPending: "等待中",
@@ -40988,4 +40992,4 @@ Nt();
 var px = document.getElementById("peach-page"), mx = px ? fx[px.dataset.page ?? ""] : void 0;
 px && mx && (0, Ht.createRoot)(px).render(/* @__PURE__ */ (0, U.jsx)(dx, { children: /* @__PURE__ */ (0, U.jsx)(mx, { data: { ...px.dataset } }) }));
 
-//# debugId=a4cc57dd-ff60-43a5-ad79-81887d8866ed
+//# debugId=c5e77144-e1aa-4965-8daa-349793d8d18f

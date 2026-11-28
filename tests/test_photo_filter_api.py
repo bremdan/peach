@@ -8,6 +8,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 import numpy
@@ -143,6 +144,40 @@ class PhotoFilterRouteTests(unittest.TestCase):
         revealed = self.post("/api/photo-filter/reveal", json={"result_id": first["id"]})
         self.assertEqual(revealed.status_code, 200, revealed.text)
         self.assertTrue(revealed.json()["ok"])
+
+    def test_zip_albums_expose_distinct_names_and_failures(self):
+        self.create_reference()
+        root = self.folder / "zip-albums"
+        folder = root / "same"
+        folder.mkdir(parents=True)
+        for index in range(6):
+            write_image(folder / f"{index}.png")
+        with zipfile.ZipFile(root / "same.zip", "w") as archive:
+            for index in range(6):
+                archive.write(folder / f"{index}.png", f"nested/{index}.png")
+        broken = root / "broken.zip"
+        with zipfile.ZipFile(broken, "w") as archive:
+            archive.writestr("01.png", b"truncated later")
+        payload = broken.read_bytes()
+        broken.write_bytes(payload[:max(1, len(payload) // 2)])
+
+        created = self.post("/api/photo-filter/tasks", json={
+            "root_path": str(root), "hit_threshold": 0.5, "taste_threshold": 0.3})
+        self.assertEqual(created.status_code, 200, created.text)
+        task = created.json()
+        from peach import photo_filter_api
+        photo_filter_api.wait_for_task(task["id"], timeout=20)
+
+        detail = self.get(f"/api/photo-filter/tasks/{task['id']}").json()
+        self.assertEqual(detail["task"]["status"], "completed")
+        self.assertEqual((detail["task"]["processed_count"], detail["task"]["total_count"]), (3, 3))
+        results = {result["album_name"]: result for result in detail["results"]}
+        self.assertEqual(set(results), {"same", "same (zip)", "broken"})
+        self.assertEqual(results["same"]["tier"], "hit")
+        self.assertEqual(results["same (zip)"]["tier"], "hit")
+        self.assertAlmostEqual(results["same (zip)"]["score"], 1.0, places=5)
+        self.assertEqual(results["broken"]["tier"], "failed")
+        self.assertTrue(results["broken"]["failure_reason"])
 
     def test_cancel_marks_a_pending_task(self):
         from peach.photo_filter_references import ReferenceStore

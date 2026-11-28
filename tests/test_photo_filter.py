@@ -10,6 +10,7 @@ import hashlib
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from peach import photo_filter_references as references
@@ -271,7 +272,7 @@ class MigrationSchemaTests(unittest.TestCase):
     def test_photo_filter_tables_exist_with_the_documented_semantics(self):
         with tempfile.TemporaryDirectory() as holder:
             db = fresh_ledger(Path(holder))
-            with sqlite3.connect(db) as connection:
+            with closing(sqlite3.connect(db)) as connection:
                 columns = {table: [row[1] for row in connection.execute(
                     f"PRAGMA table_info({table})")] for table in (
                         "photo_filter_reference", "photo_filter_task", "photo_filter_result")}

@@ -128,19 +128,24 @@ def mean_normalized(embeddings) -> object:
     return (mean / norm).astype(numpy.float32)
 
 
-def read_bgr(path: Path | str):
-    """读取 BGR 图片；中文路径可用，解码失败时抛 `ValueError`。"""
+def decode_bgr(payload: bytes, source: object):
+    """把图片字节解码成 BGR 图；解码失败时抛 `ValueError`。"""
     import cv2
     import numpy
 
+    image = cv2.imdecode(numpy.frombuffer(payload, numpy.uint8), cv2.IMREAD_COLOR)
+    if image is None or not image.size:
+        raise ValueError(f"reference photo cannot be decoded: {source}")
+    return image
+
+
+def read_bgr(path: Path | str):
+    """读取 BGR 图片；中文路径可用，解码失败时抛 `ValueError`。"""
     try:
         payload = Path(path).read_bytes()
     except OSError as error:
         raise ValueError(f"reference photo is unreadable: {path}") from error
-    image = cv2.imdecode(numpy.frombuffer(payload, numpy.uint8), cv2.IMREAD_COLOR)
-    if image is None or not image.size:
-        raise ValueError(f"reference photo cannot be decoded: {path}")
-    return image
+    return decode_bgr(payload, path)
 
 
 def build_reference_vector(photo_paths, detector: FaceDetector) -> VectorBuild:

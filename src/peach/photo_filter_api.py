@@ -34,7 +34,7 @@ from .photo_filter_references import (
     TASK_RUNNING,
     ReferenceStore,
 )
-from .photo_filter_scoring import PhotoFilterScorer
+from .photo_filter_scoring import PhotoFilterScorer, album_display_names
 from .photo_filter_vector import PhotoFilterModelUnavailable, resolve_model_dir
 
 LOGGER = logging.getLogger(__name__)
@@ -239,6 +239,7 @@ def task_payload(task) -> dict:
 def _tier_of(label: str) -> tuple[str, bool]:
     """把账本里的分层名映射成稳定分层码；加注单独给出，界面按当前语言渲染。"""
     for code, text in (
+        ("failed", words.TIER_READ_FAILED),
         ("hit", words.TIER_HIT),
         ("suspected", words.TIER_SUSPECTED),
         ("taste", words.TIER_TASTE),
@@ -320,12 +321,21 @@ def task_detail(contract, task_id: int) -> dict:
             "protagonist_cluster_ratio,tier_label,representative_face_path "
             "FROM photo_filter_result WHERE task_id=? ORDER BY score DESC, id",
             (task_id,)).fetchall()
+    albums = album_display_names(Path(row["album_path"]) for row in rows)
     results = []
     for row in rows:
         tier, spread = _tier_of(row["tier_label"])
+        album_path = Path(row["album_path"])
+        failure_reason = ""
+        if tier == "failed":
+            prefix = f"{words.TIER_READ_FAILED}："
+            failure_reason = (row["tier_label"][len(prefix):]
+                              if row["tier_label"].startswith(prefix)
+                              else row["tier_label"][len(words.TIER_READ_FAILED):].lstrip("：:"))
         results.append({
             "id": row["id"],
             "album_path": row["album_path"],
+            "album_name": albums.get(album_path, album_path.name),
             "score": row["score"],
             "top_reference_id": row["top_reference_id"],
             "top_reference_name": names.get(row["top_reference_id"], ""),
@@ -335,6 +345,7 @@ def task_detail(contract, task_id: int) -> dict:
             "tier": tier,
             "tier_label": row["tier_label"],
             "protagonist_spread": spread,
+            "failure_reason": failure_reason,
             "face_url": (f"/photo-filter-face?result={row['id']}"
                          if row["representative_face_path"] else ""),
         })
